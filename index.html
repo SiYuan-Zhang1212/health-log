@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>健康日志 · 三餐/训练/体测</title>
+<meta name="theme-color" content="#2E7D66">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="健康日志">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232E7D66'/%3E%3Cpath d='M8 17h16v2a8 8 0 0 1-16 0z' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M14 8v3M18 8v3' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --bg:#F5F7F2;
+    --surface:#FFFFFF;
+    --ink:#20332C;
+    --muted:#6C7C75;
+    --line:#DEE6DF;
+    --primary:#2E7D66;
+    --primary-ink:#1E5A49;
+    --primary-soft:#E3F0EA;
+    --accent:#D99A2B;
+    --accent-soft:#F7EBD3;
+    --danger:#C65A4B;
+    --danger-soft:#F8E7E3;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(32,51,44,.05), 0 6px 18px rgba(32,51,44,.06);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Noto Sans SC','PingFang SC','Segoe UI',Arial,sans-serif;
+    color:var(--ink);
+    background-color:var(--bg);
+    background-image:radial-gradient(#D9E3DC 1px, transparent 1.2px);
+    background-size:22px 22px;
+    min-height:100vh;
+  }
+  .app{max-width:520px;margin:0 auto;padding:14px 14px 96px;}
+  .num{font-family:'Noto Serif SC',serif;}
+
+  /* ===== 顶部条 ===== */
+  .topbar{display:flex;align-items:center;gap:10px;padding:6px 2px 14px;}
+  .logo{width:34px;height:34px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;flex:none;}
+  .logo svg{width:20px;height:20px;}
+  .topbar .t{font-weight:700;font-size:16px;letter-spacing:.2px;}
+  .topbar .s{font-size:11.5px;color:var(--muted);margin-top:1px;}
+
+  /* ===== 通用卡片 ===== */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:12px;}
+  .card h2{font-size:14px;font-weight:700;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-size:10.5px;font-weight:500;color:var(--primary-ink);background:var(--primary-soft);padding:2px 8px;border-radius:999px;}
+  .muted{color:var(--muted);}
+  .small{font-size:12px;}
+  .xs{font-size:11px;}
+  .empty{color:var(--muted);font-size:12.5px;padding:10px 2px;line-height:1.6;}
+
+  /* ===== 日期导航 ===== */
+  .datenav{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:12px;box-shadow:var(--shadow);}
+  .datenav .d{font-size:13.5px;font-weight:600;}
+  .datenav .sub{font-size:11px;color:var(--muted);}
+  .iconbtn{width:34px;height:34px;border:none;background:var(--primary-soft);color:var(--primary-ink);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .iconbtn:disabled{opacity:.4;cursor:default;}
+  .iconbtn svg{width:17px;height:17px;}
+
+  /* ===== 按钮 ===== */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:11px;font-size:13.5px;font-weight:600;padding:11px 14px;cursor:pointer;font-family:inherit;}
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-soft{background:var(--primary-soft);color:var(--primary-ink);}
+  .btn-line{background:var(--surface);color:var(--primary-ink);border:1px solid var(--line);}
+  .btn-danger{background:var(--danger-soft);color:var(--danger);}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .btn svg{width:16px;height:16px;}
+
+  /* ===== 表单 ===== */
+  .field{margin-bottom:11px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px;}
+  .inp,.sel,textarea.inp{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;font-size:14px;font-family:inherit;color:var(--ink);background:#FBFCF9;outline:none;}
+  .inp:focus,.sel:focus,textarea.inp:focus{border-color:var(--primary);background:#fff;}
+  .row{display:flex;gap:9px;}
+  .row>*{flex:1;min-width:0;}
+  textarea.inp{resize:vertical;min-height:64px;line-height:1.6;}
+
+  /* ===== 三餐 ===== */
+  .mealtabs{display:flex;gap:6px;margin-bottom:12px;}
+  .mealtabs button{flex:1;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:11px;padding:9px 0;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .mealtabs button.on{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .meal-total{display:flex;align-items:baseline;gap:8px;padding:4px 2px 10px;}
+  .meal-total .big{font-size:30px;font-weight:700;color:var(--primary-ink);}
+  .meal-total .u{font-size:12px;color:var(--muted);}
+
+  .item{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);}
+  .item:first-child{border-top:none;}
+  .item .nm{flex:1;min-width:0;}
+  .item .nm .a{font-size:14px;font-weight:600;line-height:1.4;}
+  .item .nm .b{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .item .cal{font-family:'Noto Serif SC',serif;font-size:14px;font-weight:600;color:var(--primary-ink);white-space:nowrap;}
+  .item .cal.pending{color:#B2BFB8;}
+  .del{width:28px;height:28px;border:none;background:transparent;color:#A9B8B0;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px;flex:none;}
+  .del:hover{background:var(--danger-soft);color:var(--danger);}
+  .del svg{width:15px;height:15px;}
+
+  /* ===== 训练 ===== */
+  .wentry{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--line);}
+  .wentry:first-child{border-top:none;}
+  .wentry .who{width:42px;height:42px;border-radius:12px;background:var(--primary-soft);color:var(--primary-ink);display:flex;align-items:center;justify-content:center;flex:none;}
+  .wentry .who svg{width:21px;height:21px;}
+  .wentry .bd{flex:1;min-width:0;}
+  .wentry .bd .t{font-size:14px;font-weight:600;}
+  .wentry .bd .m{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5;}
+  .wentry .bd .ana{margin-top:8px;background:var(--primary-soft);border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.7;color:var(--ink);}
+  .acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+
+  /* ===== 趋势 ===== */
+  .metric2{display:flex;gap:10px;margin-bottom:12px;}
+  .metric2 .mc{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 12px;box-shadow:var(--shadow);}
+  .metric2 .mc .k{font-size:11.5px;color:var(--muted);}
+  .metric2 .mc .v{font-size:21px;font-weight:700;margin-top:3px;}
+  .metric2 .mc .v .u{font-size:11px;color:var(--muted);font-weight:400;}
+  .goaltag{font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:2px 8px;margin-left:6px;font-weight:600;}
+  .chartbox{width:100%;}
+  .chartbox svg{display:block;width:100%;height:auto;}
+  .chartlegend{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin-top:8px;}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:baseline;}
+  .advice{background:var(--accent-soft);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.85;white-space:pre-wrap;}
+
+  /* ===== 状态打分 ===== */
+  .score{display:flex;gap:10px;justify-content:space-between;margin-top:4px;}
+  .score button{flex:1;border:1px solid var(--line);background:#FBFCF9;border-radius:11px;padding:9px 0;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit;}
+  .score button.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:700;}
+  .score button .n{display:block;font-size:15px;font-weight:700;}
+  .score button .l{display:block;font-size:10px;margin-top:1px;}
+
+  /* ===== 底部导航 ===== */
+  .tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:520px;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;padding:6px 6px calc(10px + env(safe-area-inset-bottom));z-index:50;}
+  .tabbar button{flex:1;border:none;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;cursor:pointer;font-family:inherit;border-radius:10px;}
+  .tabbar button svg{width:22px;height:22px;}
+  .tabbar button span{font-size:10.5px;font-weight:600;}
+  .tabbar button.on{color:var(--primary-ink);background:var(--primary-soft);}
+
+  /* ===== Toast / 加载 ===== */
+  #toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:rgba(32,51,44,.92);color:#fff;font-size:13px;padding:10px 16px;border-radius:10px;max-width:86%;z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;text-align:center;}
+  #toast.show{opacity:1;}
+  #loader{position:fixed;inset:0;background:rgba(245,247,242,.6);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:90;flex-direction:column;gap:10px;}
+  #loader .spin{width:34px;height:34px;border:3px solid var(--primary-soft);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;}
+  #loader .tx{font-size:13px;color:var(--primary-ink);font-weight:600;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .linkbtn{border:none;background:none;color:var(--primary-ink);font-size:13px;font-weight:600;cursor:pointer;padding:2px 0;font-family:inherit;text-decoration:underline;text-underline-offset:3px;}
+  hr.sep{border:none;border-top:1px solid var(--line);margin:14px 0;}
+  .kv{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-top:1px solid var(--line);}
+  .kv:first-of-type{border-top:none;}
+  .kv .k{color:var(--muted);}
+  .kv .v{font-weight:600;}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:74px;margin-top:10px;}
+  .bars .b{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;}
+  .bars .bar{width:100%;max-width:34px;background:var(--primary-soft);border-radius:5px 5px 2px 2px;position:relative;}
+  .bars .bar.filled{background:var(--primary);}
+  .bars .bar.today{outline:2px solid var(--primary);outline-offset:1px;}
+  .bars .l{font-size:9.5px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="logo" id="logoBtn" role="button" aria-label="回首页">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7"/><path d="M6.5 9.6V20h11V9.6"/></svg>
+    </div>
+    <div>
+      <div class="t">健康日志</div>
+      <div class="s">三餐 · 训练 · 体测 · AI 建议</div>
+    </div>
+  </header>
+  <main id="view"></main>
+</div>
+<nav class="tabbar" id="tabbar"></nav>
+<div id="loader"><div class="spin"></div><div class="tx" id="loaderTx">处理中…</div></div>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   健康日志 —— 纯前端个人健康记录工具
+   数据存本机浏览器 localStorage；AI 能力调用 DeepSeek API
+   ============================================================ */
+
+/* ---------- 常量与提示词 ---------- */
+var CAL_PROMPT = '你是营养热量估算助手。根据用户给出的食物名称和大致分量，估算每份的热量（千卡）以及蛋白质、碳水化合物、脂肪（克）。只返回 JSON，不要任何其他文字或标记，格式严格为：{"items":[{"name":"食物名","calories":数字,"protein":数字,"carbs":数字,"fat":数字}],"total_calories":数字}。条数必须与输入一致且保持顺序。无法精确的食物给合理估计值。';
+var TRAIN_PROMPT = '你是健身训练分析教练。根据用户一次训练记录，给出简短、具体、可执行的点评（150字以内）：训练量是否合理、可调整点、恢复与下次训练建议。用中文，不要寒暄，不要用列表符号以外的格式。';
+var ADVICE_PROMPT = '你是私人健康教练兼营养师。根据用户最近一段时间的三餐热量、训练记录、体重和体脂数据，以及他设定的目标，给出周度建议（400字以内，分点）：1)当前进展与目标差距；2)饮食热量调整建议；3)训练调整建议；4)下周重点关注。用中文，语气客观务实，基于提供的数据说话，不要编造没有的数据。';
+
+/* ---------- 存储 ---------- */
+var LS_DB='hk_db_v1', LS_KEY='hk_api_key', LS_MODEL='hk_model';
+var DB;
+function defaultDB(){ return {meals:{},workouts:[],measures:[],conditions:{},goals:{weight:null,bodyFat:null}}; }
+function load(){ try{ DB=Object.assign(defaultDB(), JSON.parse(localStorage.getItem(LS_DB)||'{}')); }catch(e){ DB=defaultDB(); } }
+function save(){ try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); }catch(e){ toast('无法写入本地存储：请用本地服务器方式打开页面'); } }
+function getKey(){ try{ return localStorage.getItem(LS_KEY)||''; }catch(e){ return ''; } }
+function setKey(k){ try{ localStorage.setItem(LS_KEY,k); }catch(e){} }
+function getModel(){ try{ return localStorage.getItem(LS_MODEL)||'deepseek-chat'; }catch(e){ return 'deepseek-chat'; } }
+function setModel(m){ try{ localStorage.setItem(LS_MODEL,m); }catch(e){} }
+
+/* ---------- 工具 ---------- */
+function $(s){ return document.querySelector(s); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function uid(){ return 'id'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ return fmtDate(new Date()); }
+function fmtDate(d){ var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),da=String(d.getDate()).padStart(2,'0'); return y+'-'+m+'-'+da; }
+function addDays(s,n){ var p=s.split('-'); var d=new Date(+p[0],+p[1]-1,+p[2]+n); return fmtDate(d); }
+function weekdayCN(s){ var p=s.split('-'); var d=new Date(+p[0],+p[1]-1,+p[2]); return '周'+'日一二三四五六'[d.getDay()]; }
+function escNL(s){ return esc(s).replace(/\n/g,'<br>'); }
+
+var toastTimer=null;
+function toast(msg){ var t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.classList.remove('show'); },2600); }
+function setLoading(on, tx){ var l=$('#loader'); if(tx) $('#loaderTx').textContent=tx; l.style.display=on?'flex':'none'; }
+function needKey(){ if(!getKey()){ toast('请先在「设置」填写 DeepSeek API Key'); nav('settings'); return false; } return true; }
+
+/* ---------- 日期状态 ---------- */
+var selDate = todayStr();
+var selMeal = 'breakfast';
+var MEAL_CN = {breakfast:'早餐', lunch:'午餐', dinner:'晚餐', snack:'加餐'};
+var MEAL_ORDER = ['breakfast','lunch','dinner','snack'];
+
+/* ---------- 数据访问 ---------- */
+function dayMeals(date){ if(!DB.meals[date]) DB.meals[date]={breakfast:[],lunch:[],dinner:[],snack:[]}; return DB.meals[date]; }
+function mealTotal(items){ return items.reduce(function(s,i){ return s+(typeof i.calories==='number'?i.calories:0); },0); }
+function dayCalories(date){ var m=dayMeals(date); return MEAL_ORDER.reduce(function(s,k){ return s+mealTotal(m[k]); },0); }
+function dayWorkout(date){ return DB.workouts.filter(function(w){ return w.date===date; }); }
+function sortedMeasures(){ return DB.measures.slice().sort(function(a,b){ return a.date<b.date?-1:1; }); }
+function latestMeasure(){ var s=sortedMeasures(); return s.length?s[s.length-1]:null; }
+
+/* ---------- DeepSeek ---------- */
+function dsChat(messages, jsonMode){
+  var key=getKey(), model=getModel();
+  var body={model:model,messages:messages,stream:false};
+  if(jsonMode) body.response_format={type:'json_object'};
+  return fetch('https://api.deepseek.com/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify(body)
+  }).then(function(res){
+    if(!res.ok){ return res.text().then(function(t){ throw new Error('DeepSeek HTTP '+res.status+' '+(t||'').slice(0,180)); }); }
+    return res.json();
+  }).then(function(data){
+    var c=data&&data.choices&&data.choices[0];
+    if(!c||!c.message) throw new Error('DeepSeek 返回异常');
+    return c.message.content;
+  });
+}
+function parseJson(text){
+  text=String(text||'').trim();
+  var f=text.indexOf('{'), l=text.lastIndexOf('}');
+  if(f>=0 && l>f){ try{ return JSON.parse(text.slice(f,l+1)); }catch(e){} }
+  try{ return JSON.parse(text); }catch(e){ throw new Error('无法解析 AI 返回的 JSON'); }
+}
+
+/* ---------- 路由 ---------- */
+var ROUTES={today:renderToday, meals:renderMeals, workout:renderWorkout, trends:renderTrends, settings:renderSettings};
+function currentRoute(){ var h=location.hash.replace(/^#\/?/,'').split('?')[0]; return ROUTES[h]?h:'today'; }
+function nav(r){ if(currentRoute()!==r) location.hash='#/'+r; else render(); }
+function render(){ var r=currentRoute(); $('#view').innerHTML=ROUTES[r](); renderTabbar(r); window.scrollTo(0,0); }
+function renderTabbar(r){
+  var items=[['today','今日'],['meals','三餐'],['workout','训练'],['trends','趋势'],['settings','设置']];
+  var icons={today:'<path d="M4 11 12 4l8 7"/><path d="M6.5 9.6V20h11V9.6"/>',
+    meals:'<path d="M4 10h16v2a8 8 0 0 1-16 0z"/><path d="M12 4.5V8M9 5.5V8M15 5.5V8"/>',
+    workout:'<path d="M6.5 9v6M4 10.5v3M17.5 9v6M20 10.5v3M6.5 12h11"/>',
+    trends:'<path d="M4 17 9 11l3.5 3.5L20 7"/><path d="M15 7h5v5"/>',
+    settings:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7"/>'};
+  $('#tabbar').innerHTML=items.map(function(it){ var on=it[0]===r?'on':''; return '<button class="'+on+'" data-nav="'+it[0]+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+icons[it[0]]+'</svg><span>'+it[1]+'</span></button>'; }).join('');
+}
+document.addEventListener('click', function(e){
+  var navBtn=e.target.closest('[data-nav]'); if(navBtn){ nav(navBtn.getAttribute('data-nav')); }
+});
+window.addEventListener('hashchange', render);
+
+/* ---------- 图表（手写 SVG） ---------- */
+function lineChartSVG(points, color, unit){
+  var W=440,H=150,PAD=20,n=points.length;
+  if(n===0) return '<div class="empty">暂无数据，先去「趋势」记录一次体重/体脂。</div>';
+  var min=Math.min.apply(null,points), max=Math.max.apply(null,points);
+  var span=(max-min)||1;
+  function x(i){ return PAD + i*(W-2*PAD)/(n-1); }
+  function y(v){ return H-PAD - (v-min)*(H-2*PAD)/span; }
+  var pts=points.map(function(v,i){ return x(i).toFixed(1)+','+y(v).toFixed(1); }).join(' ');
+  var area=n>1?'<polygon points="'+PAD+','+(H-PAD)+' '+pts+' '+(W-PAD)+','+(H-PAD)+'" fill="'+color+'26" stroke="none"/>':'';
+  var line='<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+  var dots=points.map(function(v,i){ return '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="'+(i===n-1?3.4:2.2)+'" fill="#fff" stroke="'+color+'" stroke-width="1.8"/>'; }).join('');
+  var last=points[n-1];
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%">'+area+line+dots+
+    '<text x="'+PAD+'" y="'+(H-4)+'" font-size="10" fill="#6C7C75" font-family="sans-serif">'+min.toFixed(1)+'</text>'+
+    '<text x="'+(W-PAD)+'" y="'+(H-4)+'" font-size="10" fill="#6C7C75" text-anchor="end" font-family="sans-serif">'+max.toFixed(1)+'</text>'+
+    '<text x="'+(W-PAD)+'" y="'+y(last)+'" font-size="11" fill="'+color+'" text-anchor="end" font-weight="600" dy="-8" font-family="sans-serif">'+last.toFixed(1)+' '+unit+'</text>'+
+    '</svg>';
+}
+
+/* ---------- 视图：今日 ---------- */
+function renderToday(){
+  var d=selDate, m=dayMeals(d), w=dayWorkout(d);
+  var total=dayCalories(d);
+  var c=DB.conditions[d]||{};
+  var mealsRows=MEAL_ORDER.map(function(k){
+    var it=m[k], cal=mealTotal(it);
+    return '<button class="item" data-gomeal="'+k+'" style="width:100%;border:none;background:none;text-align:left;cursor:pointer;font-family:inherit;">'+
+      '<span class="nm" style="flex:1;min-width:0;"><span class="a" style="font-size:14px;font-weight:600;">'+MEAL_CN[k]+'</span><span class="b" style="display:block;font-size:11.5px;color:#6C7C75;margin-top:2px;">'+(it.length? it.length+' 项':'未记录')+'</span></span>'+
+      '<span class="cal" style="'+(cal? 'color:#1E5A49':'color:#B2BFB8')+';">'+(cal? cal+' 千卡':'—')+'</span>'+
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#B2BFB8" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>'+
+      '</button>';
+  }).join('');
+  var wSummary = w.length ? (w.map(function(x){ return x.name||x.type; }).join('、')+' · 共 '+w.reduce(function(s,x){return s+(+x.duration||0);},0)+' 分钟') : '今天还没有训练记录';
+  var scores=['很差','较差','一般','良好','很好'];
+  var scoreBtns=[1,2,3,4,5].map(function(i){ return '<button class="'+(c.score===i?'on':'')+'" data-score="'+i+'"><span class="n">'+i+'</span><span class="l">'+scores[i-1]+'</span></button>'; }).join('');
+
+  // 近7天热量柱状
+  var days7=[]; for(var i=6;i>=0;i--){ days7.push(addDays(d,-i)); }
+  var max7=Math.max.apply(null, days7.map(function(x){ return dayCalories(x); }).concat([1]));
+  var bars=days7.map(function(x){
+    var v=dayCalories(x), hh=Math.max(6, Math.round(v/max7*52));
+    var cls='bar'+(v?' filled':'')+(x===d?' today':'');
+    return '<div class="b"><div class="bar '+cls+'" style="height:'+hh+'px"></div><div class="l">'+(x===d?'今':String(+x.slice(8)))+'</div></div>';
+  }).join('');
+
+  return '<div class="card" style="padding:16px;">'+
+    '<div style="font-size:12px;color:#6C7C75;">'+d+' · '+weekdayCN(d)+'</div>'+
+    '<div style="display:flex;align-items:baseline;gap:8px;margin-top:4px;"><span class="num" style="font-size:44px;font-weight:700;color:#1E5A49;">'+total+'</span><span style="font-size:13px;color:#6C7C75;">千卡 / 今日</span></div>'+
+    '<div class="bars">'+bars+'</div>'+
+    '</div>'+
+
+    '<div class="card"><h2>三餐</h2>'+mealsRows+'</div>'+
+
+    '<div class="card"><h2>训练</h2><div class="small" style="margin-bottom:10px;">'+wSummary+'</div>'+
+    '<button class="btn btn-soft btn-block" data-goworkout>去记录训练</button></div>'+
+
+    '<div class="card"><h2>睡眠与身体状态</h2>'+
+    '<div class="field"><label>昨晚睡眠（小时）</label><input class="inp" type="number" min="0" max="24" step="0.5" id="sleepInp" value="'+(c.sleep!=null?c.sleep:'')+'" placeholder="如 7.5"></div>'+
+    '<div class="field"><label>今天身体状态</label><div class="score">'+scoreBtns+'</div></div>'+
+    '<div class="field"><label>备注（可选）</label><input class="inp" id="condNote" value="'+(c.note?esc(c.note):'')+'" placeholder="如：有点疲惫 / 状态不错"></div>'+
+    '<button class="btn btn-primary btn-block" id="saveCond">保存今日状态</button></div>';
+}
+
+/* ---------- 视图：三餐 ---------- */
+function renderMeals(){
+  var m=dayMeals(selDate);
+  var tabs=MEAL_ORDER.map(function(k){ return '<button class="'+(k===selMeal?'on':'')+'" data-meal="'+k+'">'+MEAL_CN[k]+'</button>'; }).join('');
+  var items=m[selMeal];
+  var rows=items.map(function(it,i){
+    var hasCal=typeof it.calories==='number';
+    return '<div class="item"><div class="nm"><div class="a">'+esc(it.name)+'</div><div class="b">'+(it.amount?esc(it.amount):'分量未填')+'</div></div>'+
+      '<span class="cal '+(hasCal?'':'pending')+'">'+(hasCal?it.calories:'待估算')+'</span>'+
+      '<button class="del" data-delmeal="'+i+'" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg></button></div>';
+  }).join('')||'<div class="empty">这一餐还没有记录。添加食物后可用 AI 估算热量。</div>';
+  var dayTotal=dayCalories(selDate);
+  var mTotal=mealTotal(items);
+
+  return '<div class="datenav"><button class="iconbtn" id="mPrev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>'+
+    '<div style="text-align:center;"><div class="d">'+selDate+' · '+weekdayCN(selDate)+'</div><div class="sub">全天 '+dayTotal+' 千卡</div></div>'+
+    '<button class="iconbtn" id="mNext"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button></div>'+
+
+    '<div class="mealtabs">'+tabs+'</div>'+
+    '<div class="meal-total"><span class="num big">'+mTotal+'</span><span class="u">千卡 · '+MEAL_CN[selMeal]+'</span></div>'+
+    '<div class="card">'+rows+
+      '<div style="display:flex;gap:8px;margin-top:12px;"><input class="inp" id="fdName" placeholder="食物，如 白米饭"><input class="inp" id="fdAmt" placeholder="分量，如 一碗" style="flex:0 0 30%;"></div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-primary" id="addItem" style="flex:1">添加</button><button class="btn btn-soft" id="aiMeal" style="flex:1.3">AI 估算本餐热量</button></div>'+
+      '<div style="font-size:11px;color:#6C7C75;margin-top:8px;">提示：AI 估算会把本餐未填热量的食物补上热量值；也可在上方填具体食物，逐项更准。</div>'+
+    '</div>';
+}
+
+/* ---------- 视图：训练 ---------- */
+function renderWorkout(){
+  var list=DB.workouts.slice().sort(function(a,b){ return a.date<b.date?1:-1; });
+  var rows=list.map(function(w){
+    var icon=w.type==='力量'?'<path d="M6.5 9v6M4 10.5v3M17.5 9v6M20 10.5v3M6.5 12h11"/>':
+      '<path d="M7 6h10v12H7z"/><path d="M10 9h4M10 12.5h4M10 16h2.5"/>';
+    var meta=[w.type+(w.name&&w.name!==w.type?' · '+w.name:''), (w.duration?'时长 '+w.duration+' 分钟':''), (w.sets?'组数 '+w.sets:''), (w.reps?'次数 '+w.reps:''), (w.intensity?'强度 '+w.intensity:'')].filter(Boolean).join(' ｜ ');
+    return '<div class="wentry"><div class="who"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+icon+'</svg></div>'+
+      '<div class="bd"><div class="t">'+w.date+'</div><div class="m">'+esc(meta)+'</div>'+(w.note?'<div class="m">备注：'+esc(w.note)+'</div>':'')+
+      (w.analysis?'<div class="ana">'+escNL(w.analysis)+'</div>':'')+
+      '<div class="acts"><button class="linkbtn" data-aiw="'+w.id+'">'+(w.analysis?'重新 AI 分析':'AI 分析本次训练')+'</button>'+
+      '<button class="linkbtn" style="color:#C65A4B;" data-delw="'+w.id+'">删除</button></div></div></div>';
+  }).join('')||'<div class="empty">还没有训练记录。</div>';
+  var types=['力量','有氧','跑步','游泳','骑行','瑜伽','球类','其他'];
+
+  return '<div class="card"><h2>记录训练</h2>'+
+    '<div class="field"><label>日期</label><input class="inp" type="date" id="wDate" value="'+todayStr()+'"></div>'+
+    '<div class="row"><div class="field"><label>类型</label><select class="sel" id="wType">'+types.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div>'+
+    '<div class="field"><label>项目 / 动作</label><input class="inp" id="wName" placeholder="如 深蹲 / 慢跑"></div></div>'+
+    '<div class="row"><div class="field"><label>时长（分钟）</label><input class="inp" type="number" min="0" id="wDur" placeholder="如 45"></div>'+
+    '<div class="field"><label>强度</label><select class="sel" id="wInt"><option>低</option><option selected>中</option><option>高</option></select></div></div>'+
+    '<div class="row"><div class="field"><label>组数</label><input class="inp" type="number" min="0" id="wSets" placeholder="如 4"></div>'+
+    '<div class="field"><label>每组次数</label><input class="inp" type="number" min="0" id="wReps" placeholder="如 10"></div></div>'+
+    '<div class="field"><label>备注（可选）</label><input class="inp" id="wNote" placeholder="训练感受、是否完成等"></div>'+
+    '<button class="btn btn-primary btn-block" id="addWorkout">保存训练记录</button></div>'+
+    '<div class="card"><h2>历史记录</h2>'+rows+'</div>';
+}
+
+/* ---------- 视图：趋势 ---------- */
+function renderTrends(){
+  var goals=DB.goals||{};
+  var ms=sortedMeasures();
+  var last=ms.length?ms[ms.length-1]:null;
+  var wVals=ms.map(function(m){ return m.weight; }).filter(function(v){ return typeof v==='number'; });
+  var fVals=ms.map(function(m){ return m.bodyFat; }).filter(function(v){ return typeof v==='number'; });
+
+  var rows=ms.slice().reverse().map(function(m){
+    return '<div class="kv"><span class="k">'+m.date+'</span><span class="v">'+ (m.weight!=null? m.weight+' kg':'—') +' ｜ '+ (m.bodyFat!=null? m.bodyFat+' %':'—') +'</span></div>';
+  }).join('')||'<div class="empty">还没有体测记录。</div>';
+
+  return '<div class="metric2">'+
+    '<div class="mc"><div class="k">最新体重</div><div class="v">'+(last&&last.weight!=null? last.weight:'—')+'<span class="u"> kg</span>'+(goals.weight?'<span class="goaltag">目标 '+goals.weight+'</span>':'')+'</div></div>'+
+    '<div class="mc"><div class="k">最新体脂率</div><div class="v">'+(last&&last.bodyFat!=null? last.bodyFat:'—')+'<span class="u"> %</span>'+(goals.bodyFat?'<span class="goaltag">目标 '+goals.bodyFat+'%</span>':'')+'</div></div></div>'+
+
+    '<div class="card"><h2>目标设定</h2>'+
+    '<div class="row"><div class="field"><label>目标体重（kg）</label><input class="inp" type="number" step="0.1" id="gWeight" value="'+(goals.weight!=null?goals.weight:'')+'" placeholder="如 60"></div>'+
+    '<div class="field"><label>目标体脂率（%）</label><input class="inp" type="number" step="0.1" id="gFat" value="'+(goals.bodyFat!=null?goals.bodyFat:'')+'" placeholder="如 20"></div></div>'+
+    '<button class="btn btn-soft btn-block" id="saveGoals">保存目标</button></div>'+
+
+    '<div class="card"><h2>记录体测</h2>'+
+    '<div class="row"><div class="field"><label>日期</label><input class="inp" type="date" id="meaDate" value="'+todayStr()+'"></div>'+
+    '<div class="field"><label>体重（kg）</label><input class="inp" type="number" step="0.1" id="meaW" placeholder="如 62.5"></div>'+
+    '<div class="field"><label>体脂率（%）</label><input class="inp" type="number" step="0.1" id="meaF" placeholder="如 22.1"></div></div>'+
+    '<button class="btn btn-primary btn-block" id="addMea">保存本次体测</button></div>'+
+
+    '<div class="card"><h2>体重趋势</h2><div class="chartbox">'+(wVals.length? lineChartSVG(wVals,'#2E7D66','kg') :'<div class="empty">记录体重后这里会显示趋势。</div>')+'</div></div>'+
+    '<div class="card"><h2>体脂率趋势</h2><div class="chartbox">'+(fVals.length? lineChartSVG(fVals,'#D99A2B','%') :'<div class="empty">记录体脂率后这里会显示趋势。</div>')+'</div></div>'+
+
+    '<div class="card"><h2>历史体测</h2>'+rows+'</div>'+
+
+    '<div class="card"><h2>AI 周建议</h2><div class="small" style="margin-bottom:10px;">基于最近 28 天的三餐热量、训练与体测数据，结合你的目标生成建议。</div>'+
+    '<button class="btn btn-primary btn-block" id="aiAdvice">生成本周 AI 建议</button><div id="adviceBox" style="margin-top:10px;"></div></div>';
+}
+
+/* ---------- 视图：设置 ---------- */
+function renderSettings(){
+  var k=getKey();
+  return '<div class="card"><h2>DeepSeek AI 设置</h2>'+
+    '<div class="field"><label>API Key</label><input class="inp" type="password" id="keyInp" placeholder="sk-…" value="'+esc(k)+'" autocomplete="off" spellcheck="false"></div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:8px;"><button class="btn btn-soft" id="toggleKey" style="flex:1">显示 / 隐藏</button><button class="btn btn-primary" id="saveKey" style="flex:1">保存 Key</button></div>'+
+    '<div class="field"><label>模型</label><select class="sel" id="modelSel">'+
+      '<option value="deepseek-chat"'+(getModel()==='deepseek-chat'?' selected':'')+'>deepseek-chat（日常，快且省）</option>'+
+      '<option value="deepseek-reasoner"'+(getModel()==='deepseek-reasoner'?' selected':'')+'>deepseek-reasoner（深度思考，更慢）</option></select></div>'+
+    '<div class="xs muted" style="line-height:1.7;">Key 只保存在本机浏览器的 localStorage 中，不会上传到任何服务器。请在 DeepSeek 开放平台（platform.deepseek.com）申请。</div></div>'+
+
+    '<div class="card"><h2>数据管理</h2>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-line" id="exportBtn" style="flex:1">导出 JSON</button><button class="btn btn-danger" id="clearBtn" style="flex:1">清空全部数据</button></div>'+
+    '<div class="xs muted" style="margin-top:10px;line-height:1.7;">所有记录都存在本机浏览器里。导出可备份；清空会删除三餐、训练、体测与目标（不会删除 API Key）。</div></div>'+
+
+    '<div class="card"><h2>手机端使用</h2><div class="small" style="line-height:1.8;color:#6C7C75;">'+
+    '在电脑上直接双击打开 index.html 即可用。想在手机上也用：<br>1) 在电脑此文件夹终端运行：python3 -m http.server 8000<br>2) 手机连同一 Wi-Fi，浏览器访问 http://电脑IP:8000<br>3) 用 Safari/Chrome 的「添加到主屏幕」，下次像 App 一样打开。</div></div>'+
+
+    '<div class="card"><h2>关于</h2><div class="small" style="line-height:1.8;color:#6C7C75;">个人健康日志：记录三餐并用 DeepSeek 估算热量、记录训练并由 AI 点评、每周记录体重体脂并生成建议。数据全部本地保存。</div></div>';
+}
+
+/* ---------- 事件绑定：今日 ---------- */
+function bindToday(){
+  $('#view').querySelectorAll('[data-gomeal]').forEach(function(b){ b.addEventListener('click',function(){ selMeal=b.getAttribute('data-gomeal'); nav('meals'); }); });
+  var g=$('#view').querySelector('[data-goworkout]'); if(g) g.addEventListener('click',function(){ nav('workout'); });
+  $('#view').querySelectorAll('[data-score]').forEach(function(b){ b.addEventListener('click',function(){ DB.conditions[selDate]=DB.conditions[selDate]||{}; DB.conditions[selDate].score=+b.getAttribute('data-score'); save(); render(); }); });
+  var sc=$('#saveCond'); if(sc) sc.addEventListener('click',function(){
+    var c=DB.conditions[selDate]=DB.conditions[selDate]||{};
+    var s=$('#sleepInp').value, n=$('#condNote').value;
+    c.sleep = s===''?null:Number(s);
+    c.note = n;
+    save(); toast('今日状态已保存');
+  });
+}
+
+/* ---------- 事件绑定：三餐 ---------- */
+function bindMeals(){
+  var p=$('#mPrev'),n=$('#mNext');
+  if(p) p.addEventListener('click',function(){ selDate=addDays(selDate,-1); render(); });
+  if(n) n.addEventListener('click',function(){ selDate=addDays(selDate,1); render(); });
+  $('#view').querySelectorAll('[data-meal]').forEach(function(b){ b.addEventListener('click',function(){ selMeal=b.getAttribute('data-meal'); render(); }); });
+  $('#view').querySelectorAll('[data-delmeal]').forEach(function(b){ b.addEventListener('click',function(){ var i=+b.getAttribute('data-delmeal'); dayMeals(selDate)[selMeal].splice(i,1); save(); render(); }); });
+  var ad=$('#addItem'); if(ad) ad.addEventListener('click',function(){
+    var nm=$('#fdName').value.trim(), amt=$('#fdAmt').value.trim();
+    if(!nm){ toast('请填写食物名称'); return; }
+    dayMeals(selDate)[selMeal].push({name:nm,amount:amt,calories:null});
+    save(); render();
+  });
+  var ai=$('#aiMeal'); if(ai) ai.addEventListener('click',aiEstimateMeal);
+}
+function aiEstimateMeal(){
+  if(!needKey()) return;
+  var items=dayMeals(selDate)[selMeal].filter(function(i){ return i.name.trim(); });
+  if(!items.length){ toast('这一餐还没有食物'); return; }
+  setLoading(true,'AI 估算本餐热量…');
+  var desc=items.map(function(i){ return i.name+(i.amount?'（'+i.amount+'）':''); }).join('；');
+  dsChat([{role:'system',content:CAL_PROMPT},{role:'user',content:desc}], true).then(function(content){
+    var j=parseJson(content), list=(j&&Array.isArray(j.items))?j.items:[];
+    items.forEach(function(it,idx){ var r=list[idx]; if(r&&typeof r.calories==='number') it.calories=Math.round(r.calories); });
+    save(); render(); toast('估算完成，已填入热量');
+  }).catch(function(e){ toast('估算失败：'+e.message); }).then(function(){ setLoading(false); });
+}
+
+/* ---------- 事件绑定：训练 ---------- */
+function bindWorkout(){
+  var ad=$('#addWorkout'); if(ad) ad.addEventListener('click',function(){
+    var date=$('#wDate').value||todayStr();
+    var type=$('#wType').value, name=$('#wName').value.trim()||type;
+    var dur=$('#wDur').value, sets=$('#wSets').value, reps=$('#wReps').value;
+    var inten=$('#wInt').value, note=$('#wNote').value.trim();
+    DB.workouts.push({id:uid(),date:date,type:type,name:name,duration:dur?+dur:null,sets:sets?+sets:null,reps:reps?+reps:null,intensity:inten,note:note,analysis:''});
+    save(); toast('训练已保存'); render();
+  });
+  $('#view').querySelectorAll('[data-aiw]').forEach(function(b){ b.addEventListener('click',function(){ aiAnalyze(b.getAttribute('data-aiw')); }); });
+  $('#view').querySelectorAll('[data-delw]').forEach(function(b){ b.addEventListener('click',function(){
+    var id=b.getAttribute('data-delw');
+    if(!confirm('删除这条训练记录？')) return;
+    DB.workouts=DB.workouts.filter(function(x){ return x.id!==id; }); save(); render();
+  }); });
+}
+function aiAnalyze(id){
+  if(!needKey()) return;
+  var w=DB.workouts.find(function(x){ return x.id===id; }); if(!w) return;
+  setLoading(true,'AI 分析本次训练…');
+  var desc='日期 '+w.date+'；项目 '+w.type+(w.name&&w.name!==w.type?' - '+w.name:'')+'; '+
+    (w.duration?'时长 '+w.duration+' 分钟；':'')+(w.sets?'组数 '+w.sets+'；':'')+(w.reps?'每组 '+w.reps+' 次；':'')+
+    '强度 '+w.intensity+(w.note?'；备注 '+w.note:'');
+  dsChat([{role:'system',content:TRAIN_PROMPT},{role:'user',content:desc}], false).then(function(c){
+    w.analysis=String(c).trim(); save(); render(); toast('分析完成');
+  }).catch(function(e){ toast('分析失败：'+e.message); }).then(function(){ setLoading(false); });
+}
+
+/* ---------- 事件绑定：趋势 ---------- */
+function bindTrends(){
+  var sg=$('#saveGoals'); if(sg) sg.addEventListener('click',function(){
+    var gw=$('#gWeight').value, gf=$('#gFat').value;
+    DB.goals.weight = gw===''?null:Number(gw);
+    DB.goals.bodyFat = gf===''?null:Number(gf);
+    save(); toast('目标已保存'); render();
+  });
+  var am=$('#addMea'); if(am) am.addEventListener('click',function(){
+    var date=$('#meaDate').value||todayStr(), w=$('#meaW').value, f=$('#meaF').value;
+    if(w==='' && f===''){ toast('请至少填一项'); return; }
+    if(DB.measures.some(function(m){ return m.date===date; }) && !confirm(date+' 已有记录，覆盖吗？')) return;
+    DB.measures=DB.measures.filter(function(m){ return m.date!==date; });
+    DB.measures.push({id:uid(),date:date,weight:w===''?null:Number(w),bodyFat:f===''?null:Number(f)});
+    save(); toast('体测已保存'); render();
+  });
+  var aa=$('#aiAdvice'); if(aa) aa.addEventListener('click',aiWeeklyAdvice);
+}
+function buildHistorySummary(){
+  var now=new Date(), end=fmtDate(now);
+  var start=new Date(); start.setDate(now.getDate()-27); var startS=fmtDate(start);
+  var lines=[];
+  lines.push('数据范围：'+startS+' 至 '+end);
+  // 每日热量
+  var calRows=[];
+  for(var d=startS; d<=end; d=addDays(d,1)){
+    var c=dayCalories(d);
+    if(c>0) calRows.push(d+' '+c+' 千卡');
+  }
+  lines.push('每日摄入热量（仅记录过三餐的日子）：'+(calRows.join('；')||'无'));
+  lines.push('日均摄入（有记录的日子）：'+(calRows.length? Math.round(calRows.reduce(function(s,r){return s+Number(r.split(' ')[1]);},0)/calRows.length)+' 千卡':'无'));
+  // 训练
+  var ws=DB.workouts.filter(function(w){ return w.date>=startS && w.date<=end; });
+  lines.push('训练记录共 '+ws.length+' 次：'+(ws.map(function(w){ return w.date+' '+w.type+(w.duration?' '+w.duration+'min':''); }).join('；')||'无'));
+  // 体测
+  var ms=sortedMeasures().filter(function(m){ return m.date>=startS && m.date<=end; });
+  lines.push('体测记录：'+(ms.map(function(m){ return m.date+' 体重'+ (m.weight!=null?m.weight+'kg':'—')+' 体脂'+(m.bodyFat!=null?m.bodyFat+'%':'—'); }).join('；')||'无'));
+  if(ms.length>=2){
+    var a=ms[0],b=ms[ms.length-1];
+    if(a.weight!=null&&b.weight!=null) lines.push('期间体重变化：'+(b.weight-a.weight>=0?'+':'')+(b.weight-a.weight).toFixed(1)+' kg');
+    if(a.bodyFat!=null&&b.bodyFat!=null) lines.push('期间体脂变化：'+(b.bodyFat-a.bodyFat>=0?'+':'')+(b.bodyFat-a.bodyFat).toFixed(1)+' 个百分点');
+  }
+  var g=DB.goals||{};
+  lines.push('目标：体重 '+(g.weight!=null?g.weight+'kg':'未设')+'，体脂率 '+(g.bodyFat!=null?g.bodyFat+'%':'未设'));
+  return lines.join('\n');
+}
+function aiWeeklyAdvice(){
+  if(!needKey()) return;
+  setLoading(true,'AI 生成周建议…');
+  dsChat([{role:'system',content:ADVICE_PROMPT},{role:'user',content:buildHistorySummary()}], false).then(function(c){
+    var box=$('#adviceBox'); if(box) box.innerHTML='<div class="advice">'+escNL(c)+'</div>';
+    toast('建议已生成');
+  }).catch(function(e){ toast('生成失败：'+e.message); }).then(function(){ setLoading(false); });
+}
+
+/* ---------- 事件绑定：设置 ---------- */
+function bindSettings(){
+  var tk=$('#toggleKey'); if(tk) tk.addEventListener('click',function(){ var i=$('#keyInp'); i.type=i.type==='password'?'text':'password'; });
+  var sk=$('#saveKey'); if(sk) sk.addEventListener('click',function(){
+    var v=$('#keyInp').value.trim();
+    if(!v){ toast('Key 不能为空'); return; }
+    setKey(v); toast('API Key 已保存');
+  });
+  var ms=$('#modelSel'); if(ms) ms.addEventListener('change',function(){ setModel(ms.value); toast('模型已切换：'+ms.value); });
+  var eb=$('#exportBtn'); if(eb) eb.addEventListener('click',function(){
+    var blob=new Blob([JSON.stringify({db:DB,key:getKey()},null,2)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='health-backup-'+todayStr()+'.json'; a.click(); URL.revokeObjectURL(a.href);
+    toast('已导出备份文件');
+  });
+  var cb=$('#clearBtn'); if(cb) cb.addEventListener('click',function(){
+    if(!confirm('确定清空全部记录（三餐/训练/体测/目标）？此操作不可恢复。')) return;
+    DB=defaultDB(); save(); toast('已清空'); render();
+  });
+}
+
+/* ---------- 启动 ---------- */
+var logo=$('#logoBtn');
+if(logo) logo.addEventListener('click',function(){ nav('today'); });
+load();
+if(!location.hash){ location.hash='#/today'; }
+render();
+</script>
+</body>
+</html>

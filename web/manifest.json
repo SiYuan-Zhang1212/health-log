@@ -1,0 +1,14 @@
+{
+  "name": "健康日志",
+  "short_name": "健康日志",
+  "description": "总览 · 日常 · 三餐 · 训练 · 体测 · AI 建议",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F7F2",
+  "theme_color": "#2E7D66",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

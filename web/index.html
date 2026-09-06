@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>健康日志 · 总览</title>
+<meta name="theme-color" id="themeColorMeta" content="#F7F8F4">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232E7D66'/%3E%3Cpath d='M8 17h16v2a8 8 0 0 1-16 0z' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M14 8v3M18 8v3' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<script>
+/* 主题先行：避免深色模式闪白（在样式加载前解析） */
+(function(){
+  var themeBG = {light:'#F7F8F4', dark:'#101613'};
+  try{
+    var pref = localStorage.getItem('hk_theme') || 'auto';
+    var t = pref==='auto' ? (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light') : pref;
+    document.documentElement.dataset.theme = t;
+    var m=document.getElementById('themeColorMeta'); if(m) m.content=themeBG[t]||themeBG.light;
+  }catch(e){}
+})();
+</script>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand" id="logoBtn" role="button" tabindex="0" aria-label="回首页">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7"/><path d="M6.5 9.6V20h11V9.6"/></svg>
+      </div>
+      <div>
+        <div class="t">健康日志</div>
+        <div class="s">记录日常，看见改变</div>
+      </div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot"><span id="saveState" aria-live="polite"></span></div>
+  </aside>
+  <main id="view" class="content"></main>
+</div>
+<div id="loader"><div class="spin"></div><div class="tx" id="loaderTx">处理中…</div></div>
+<div id="toast" role="status"></div>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>
