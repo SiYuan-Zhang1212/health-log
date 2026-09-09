@@ -57,6 +57,40 @@ function renderNav(r){
   document.querySelector('.sidebar').classList.remove('nav-off');
 }
 
+/* ---------- 登录页（云端托管时） ---------- */
+let loginRendered = false;
+function renderLogin(msg){
+  booted = false;
+  loginRendered = true;
+  document.querySelector('.sidebar').classList.add('nav-off');
+  $('#view').innerHTML = '<div class="card guide">'
+    + '<h2>健康日志 · 登录</h2>'
+    + '<div class="small" style="color:var(--muted);line-height:1.7;margin-bottom:10px;">数据托管在云端，输入密码后继续。</div>'
+    + '<div class="field"><label>密码</label><input class="inp" type="password" id="pwInp" autocomplete="current-password" placeholder="登录密码"></div>'
+    + (msg ? '<div class="xs" style="color:#c0392b;margin-bottom:8px;">' + esc(msg) + '</div>' : '')
+    + '<button class="btn btn-primary btn-block" id="loginBtn">登录</button>'
+    + '</div>';
+  const inp = $('#pwInp');
+  const btn = $('#loginBtn');
+  if(inp) inp.focus();
+  const submit = async () => {
+    const v = inp.value;
+    if(!v){ inp.focus(); return; }
+    btn.disabled = true;
+    btn.textContent = '登录中…';
+    try{
+      await api.login(v);
+      loginRendered = false;
+      $('#view').innerHTML = '<div class="card"><div class="empty">正在加载数据…</div></div>';
+      await boot();
+    }catch(e){
+      renderLogin(e.message);
+    }
+  };
+  btn.addEventListener('click', submit);
+  inp.addEventListener('keydown', e => { if(e.key === 'Enter') submit(); });
+}
+
 /* ---------- 服务器未启动 / 离线 ---------- */
 function renderGuide(err){
   booted = false;
@@ -173,18 +207,28 @@ async function boot(){
   try{
     res = await api.fetchDB();
   }catch(e){
+    if(e.auth){ if(!loginRendered) renderLogin(''); return; }
     renderGuide(e);
     return;
   }
   setDB(res.db);
   api.setRev(res.rev);
   api.cacheLast(res.db);
+  await api.whoami();   // 记录是否云端托管（设置页据此显示备份/退出登录）
+  loginRendered = false;
   booted = true;
   await maybeMigrate();
   registerSW();
   if(!location.hash) location.hash = '#/today'; // 触发 hashchange → render
   render();
 }
+
+/* 登录态失效：任何时候拿到 401 都回到登录页 */
+api.setAuthHandler(() => {
+  if(loginRendered) return;
+  if(booted) toast('登录已过期，请重新登录');
+  renderLogin(booted ? '登录已过期，请重新登录' : '');
+});
 
 /* 多设备冲突：自动拉取最新数据刷新 */
 api.setConflictHandler(async () => {

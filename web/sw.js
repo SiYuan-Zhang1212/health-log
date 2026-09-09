@@ -1,5 +1,5 @@
 /* Service Worker：静态资源网络优先（保持新鲜）、离线走预缓存；/api 永远走网络 */
-const CACHE = 'health-log-v13';
+const CACHE = 'health-log-v14';
 const ASSETS = [
   '/',
   '/css/app.css',

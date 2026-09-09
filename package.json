@@ -1,0 +1,18 @@
+{
+  "name": "health-log",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "健康日志 · 本地 / Cloudflare 双模式",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node worker/test/local-test.mjs",
+    "mock": "node worker/test/serve-mock.mjs",
+    "db:schema": "wrangler d1 execute health-log --file=worker/schema.sql --remote",
+    "db:schema:local": "wrangler d1 execute health-log --file=worker/schema.sql --local"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  // 健康日志 · Cloudflare Workers 配置
+  // 部署步骤见 部署.md
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "health-log",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-06-01",
+
+  // 静态资源：直接托管 web/ 目录，和 API 同一个域名（无跨域、Cookie 直接生效）
+  "assets": {
+    "directory": "./web",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+
+  // 数据库：binding 必须是 DB（worker/index.js 里用的是 env.DB）
+  // remote: true → wrangler dev 直接连云端数据库；想用本地副本就删掉这一行
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "health-log",
+      "database_id": "e162ab50-9b4b-4f75-8701-5e39714893b4",
+      "remote": true
+    }
+  ],
+
+  // 自定义域名：部署时自动创建 health.siyzhang12.online（域名已在同一个 Cloudflare 账号下）
+  // 想换子域名改这里即可；不要了就删掉这一段，改回用 *.workers.dev
+  "routes": [
+    {
+      "pattern": "health.siyzhang12.online",
+      "custom_domain": true
+    }
+  ],
+
+  "observability": { "enabled": true }
+}

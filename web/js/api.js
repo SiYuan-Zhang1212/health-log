@@ -1,19 +1,21 @@
-/* 与本地服务器通信：读取/保存数据、防抖自动保存、版本冲突处理、离线兜底 */
+/* 与服务器通信：读取/保存数据、防抖自动保存、版本冲突处理、登录态、离线兜底 */
 
 import { toast } from './ui.js';
 
 const DB_URL = '/api/db';
 const LAST_DB_KEY = 'hk_last_db'; // 离线预览用的只读快照
 
-let dbRef = null;   // 当前数据引用（store.setDB 后通过 setDBRef 注入）
-let rev = 0;        // 服务器数据版本号
-let dirty = false;  // 有未保存的修改
+let dbRef = null;    // 当前数据引用（store.setDB 后通过 setDBRef 注入）
+let rev = 0;         // 服务器数据版本号
+let dirty = false;   // 有未保存的修改
 let timer = null;
+let cloud = false;   // 是否云端托管（决定设置页显示哪些东西）
 
 export function setDBRef(db){ dbRef = db; }
 export function getRev(){ return rev; }
 export function setRev(r){ rev = r || 0; }
 export function isDirty(){ return dirty; }
+export function isCloud(){ return cloud; }
 
 /* 保存状态指示（顶栏小字） */
 function saveState(state){
@@ -25,17 +27,70 @@ function saveState(state){
   else { el.className = ''; }
 }
 
-/* ---------- 基础请求 ---------- */
+/* ---------- 基础请求：401 统一交给登录页 ---------- */
+const api = { onConflict: null, onAuthLost: null };
+export function setConflictHandler(fn){ api.onConflict = fn; }
+export function setAuthHandler(fn){ api.onAuthLost = fn; }
+
+function authLost(){
+  if(typeof api.onAuthLost === 'function') api.onAuthLost();
+}
+
+async function req(url, opts){
+  let r;
+  try{
+    r = await fetch(url, Object.assign({ credentials: 'same-origin', cache: 'no-store' }, opts || {}));
+  }catch(e){
+    throw new Error('网络不可用');
+  }
+  if(r.status === 401){
+    const e = new Error('需要登录');
+    e.auth = true;
+    authLost();
+    throw e;
+  }
+  return r;
+}
+
+/* ---------- 登录 ---------- */
+export async function login(password){
+  const r = await fetch('/api/login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return true;
+}
+
+export async function logout(){
+  try{ await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); }catch(e){}
+}
+
+/* 当前登录态；未登录返回 null（不触发 onAuthLost） */
+export async function whoami(){
+  try{
+    const r = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' });
+    if(!r.ok) return null;
+    const j = await r.json();
+    if(!j || !j.ok) return null;
+    cloud = !!j.cloud;
+    return j;
+  }catch(e){ return null; }
+}
+
+/* ---------- 数据读写 ---------- */
 export async function fetchDB(){
-  const r = await fetch(DB_URL, { cache: 'no-store' });
-  if(!r.ok) throw new Error('HTTP ' + r.status);
-  const j = await r.json();
-  if(!j || !j.ok) throw new Error((j && j.error) || '服务器返回异常');
+  const r = await req(DB_URL);
+  const j = await r.json().catch(() => null);
+  if(!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
   return j; // {ok, rev, db}
 }
 
 async function pushDB(){
-  const r = await fetch(DB_URL, {
+  const r = await req(DB_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ rev, db: dbRef }),
@@ -65,6 +120,7 @@ export async function saveNow(){
     saveState('saved');
     cacheLast(dbRef);
   }catch(e){
+    if(e.auth) return;           // 登录页会接管
     if(e.conflict){
       // 其他设备先保存了：拉取最新数据，交给上层刷新界面
       dirty = false;
@@ -86,6 +142,7 @@ window.addEventListener('pagehide', flushBeacon);
 function flushBeacon(){
   if(!dbRef || !dirty || !navigator.sendBeacon) return;
   const blob = new Blob([JSON.stringify({ rev, db: dbRef })], { type: 'application/json' });
+  // 同源请求会带上登录 Cookie
   if(navigator.sendBeacon(DB_URL, blob)){ dirty = false; }
 }
 
@@ -103,6 +160,23 @@ export function readCachedDB(){
   }catch(e){ return null; }
 }
 
-const api = { onConflict: null };
-export function setConflictHandler(fn){ api.onConflict = fn; }
+/* ---------- 云端备份 ---------- */
+export async function listSnapshots(){
+  const r = await req('/api/snapshots');
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j.snapshots || [];
+}
+
+export async function restoreSnapshot(id){
+  const r = await req('/api/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
 export default api;

@@ -2,3 +2,7 @@ __pycache__/
 .DS_Store
 .zcode/
 data/
+.wrangler/
+node_modules/
+.npm-cache/
+.dev.vars

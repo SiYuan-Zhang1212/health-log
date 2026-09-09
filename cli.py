@@ -3,10 +3,19 @@
 """
 健康日志 · 命令行工具（供远程终端 / AI 助手调用）
 
-数据与 server.py 共用（data/health.json）。服务器在跑就走 HTTP API，
-没跑就直接读写文件（自动备份 + 版本号递增），两边都安全。
+数据源优先级（load_db / save_db / ds_chat 都按这个顺序）：
+  1. 配了 remote（环境变量 HEALTH_LOG_API / HEALTH_LOG_TOKEN，或 data/config.json 里的
+     remote_url / remote_token，环境变量优先）→ 走云端 Worker 的 /api/db（带 Bearer 鉴权）；
+  2. 没配 remote → 先试本地服务器 http://127.0.0.1:8000，连不上再直接读写
+     data/health.json（自动备份 + 版本号递增）；
+  3. 配了 remote 但云端不可达 → 回退到本地文件并打印警告。
 
 用法：
+  python3 cli.py remote                              # 查看当前云端配置（token 打码）
+  python3 cli.py remote <url> [token]                # 配置云端地址 + 鉴权 token
+  python3 cli.py remote --clear                      # 清除云端配置（保留 config.json 其他字段）
+  python3 cli.py sync                                # 从云端拉取数据写入本地 data/health.json
+  python3 cli.py push                                # 用本地 data/health.json 强制覆盖云端（会覆盖！）
   python3 cli.py key sk-xxx                          # 保存 DeepSeek API Key
   python3 cli.py log "早上两个鸡蛋，练了40分钟力量"     # AI 大白话录入（三餐/训练/睡眠/体重）
   python3 cli.py meal 午餐 鸡胸肉 米饭 [--ai]         # 添加食物（--ai 顺便估算热量营养素）
@@ -22,7 +31,8 @@
   python3 cli.py suggest 午餐 [--pref 少油不吃辣]     # AI 推荐这一餐吃什么
 
 所有记录命令支持 --date YYYY-MM-DD（默认今天）。
-AI 命令（log --ai / coach / suggest）需要先用 key 命令配置 DeepSeek API Key。
+AI 命令（log --ai / coach / suggest）需要先用 key 命令配置 DeepSeek API Key；
+配了 remote 时 AI 走云端代理，本地 Key 只在代理不可用时兜底。
 """
 import argparse
 import datetime
@@ -42,7 +52,8 @@ REV_FILE = os.path.join(DATA_DIR, 'rev.txt')
 CONFIG_FILE = os.path.join(DATA_DIR, 'config.json')
 BACKUP_DIR = os.path.join(DATA_DIR, 'backups')
 LOCK_FILE = os.path.join(DATA_DIR, '.cli.lock')
-API = os.environ.get('HEALTH_LOG_API', 'http://127.0.0.1:8000')
+API = 'http://127.0.0.1:8000'  # 本地 server.py 地址（云端地址见 remote_conf()）
+UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) health-log-cli/2.0'
 MODEL = 'deepseek-v4-flash-vision-exp'
 PLAN_FILE = os.path.join(DATA_DIR, '训练计划.md')
 
@@ -63,6 +74,57 @@ def fail(msg):
     sys.exit(1)
 
 
+# ---------- 云端配置（data/config.json + 环境变量） ----------
+
+def read_config():
+    """读 data/config.json（不存在或坏掉都返回空 dict，不抛异常）"""
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        if isinstance(cfg, dict):
+            return cfg
+    except Exception:
+        pass
+    return {}
+
+
+def write_config(cfg):
+    """原子写回 data/config.json，保留调用方没动的字段"""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    tmp = CONFIG_FILE + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, CONFIG_FILE)
+
+
+def env_remote_url():
+    return (os.environ.get('HEALTH_LOG_API') or '').strip()
+
+
+def env_remote_token():
+    return (os.environ.get('HEALTH_LOG_TOKEN') or '').strip()
+
+
+def remote_conf():
+    """返回 (云端地址, token)；没配云端地址就返回 (None, None)。
+
+    环境变量 HEALTH_LOG_API / HEALTH_LOG_TOKEN 优先于 data/config.json 的
+    remote_url / remote_token。
+    """
+    cfg = read_config()
+    url = env_remote_url() or str(cfg.get('remote_url') or '').strip()
+    if not url:
+        return None, None
+    token = env_remote_token() or str(cfg.get('remote_token') or '').strip()
+    return url.rstrip('/'), token
+
+
+def mask_token(t):
+    """token 打码：只显示前 4 位"""
+    t = str(t or '')
+    return (t[:4] + '…') if t else '（未设置）'
+
+
 def today():
     return datetime.date.today().isoformat()
 
@@ -72,18 +134,50 @@ def weekday_cn(ds):
     return '周' + '日一二三四五六'[d.weekday() + 1 if d.weekday() < 6 else 0]
 
 
-# ---------- 数据读写：优先走服务器 API，失败则直接文件 ----------
+# ---------- 数据读写：配了云端走云端，否则走本地服务器，再失败直接文件 ----------
 
-def _http(method, path, payload=None):
+CLOUD_DOWN_WARN = '⚠ 云端不可达，已改用本地文件 data/health.json'
+AUTH_HINT = '远程鉴权失败（401）：请检查 token，运行 python3 cli.py remote <url> <token>'
+CONFLICT_HINT = '数据已在别处更新，先运行 python3 cli.py sync 拉取最新数据再试'
+
+
+def _http(method, path, payload=None, base=None, token=None, timeout=10):
+    """发一个 JSON 请求。base 默认本地服务器；token 非空时带 Bearer 鉴权头。"""
+    # Cloudflare Bot Fight Mode 会拦 Python 默认 UA（1010），带浏览器样式 UA 放行
+    headers = {'Content-Type': 'application/json', 'User-Agent': UA}
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
     req = urllib.request.Request(
-        API + path, method=method,
+        (base or API).rstrip('/') + path, method=method,
         data=json.dumps(payload).encode() if payload is not None else None,
-        headers={'Content-Type': 'application/json'})
-    with urllib.request.urlopen(req, timeout=10) as r:
+        headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
 
 
+def _unreachable(e):
+    """云端没正常应答（连不上 / DNS 失败 / 5xx 网关错误）→ True"""
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code >= 500
+    return True
+
+
 def load_db():
+    """返回 (db, rev)。rev 为 None 表示数据来自本地文件。"""
+    url, token = remote_conf()
+    if url:
+        try:
+            j = _http('GET', '/api/db', base=url, token=token)
+            return j['db'], j.get('rev', 0)
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                fail(AUTH_HINT)
+            if not _unreachable(e):
+                fail('云端读取失败（HTTP %d）：%s' % (e.code, e.read().decode()[:120]))
+        except Exception:
+            pass
+        sys.stderr.write(CLOUD_DOWN_WARN + '\n')
+        return _read_file(), None
     try:
         j = _http('GET', '/api/db')
         return j['db'], j.get('rev', 0)
@@ -92,6 +186,25 @@ def load_db():
 
 
 def save_db(db, rev):
+    url, token = remote_conf()
+    if url:
+        try:
+            j = _http('POST', '/api/db', {'rev': rev, 'db': db}, base=url, token=token)
+            if not j.get('ok'):
+                fail('云端保存失败：%s' % j.get('error', 'unknown'))
+            return
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                fail(AUTH_HINT)
+            if e.code == 409:
+                fail('云端版本冲突（409）：' + CONFLICT_HINT)
+            if not _unreachable(e):
+                fail('云端拒绝写入（%s）：%s' % (e.code, e.read().decode()[:120]))
+        except Exception:
+            pass
+        sys.stderr.write(CLOUD_DOWN_WARN + '\n')
+        _write_file(db)
+        return
     try:
         j = _http('POST', '/api/db', {'rev': rev, 'db': db})
         if not j.get('ok'):
@@ -160,6 +273,20 @@ def get_key():
 
 
 def ds_chat(messages, json_mode=False):
+    url, token = remote_conf()
+    if url:
+        # 优先走云端代理（Key 留在云端，不经过本地）
+        try:
+            j = _http('POST', '/api/ai/chat', {'messages': messages, 'jsonMode': bool(json_mode)},
+                      base=url, token=token, timeout=180)
+            if j.get('ok') and j.get('content'):
+                return j['content']
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                fail(AUTH_HINT)
+        except Exception:
+            pass
+        # 代理不可用 → 回退到直连（下面继续）
     key = get_key()
     if not key:
         fail('还没有配置 DeepSeek API Key，先运行：python3 cli.py key sk-xxx')
@@ -208,23 +335,114 @@ def day(db, d):
 
 
 def cmd_key(args):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    cfg = {}
-    try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            cfg = json.load(f)
-    except Exception:
-        pass
+    cfg = read_config()
     cfg['api_key'] = args.value.strip()
-    tmp = CONFIG_FILE + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, CONFIG_FILE)
+    write_config(cfg)
     try:
         _http('POST', '/api/key', {'key': args.value.strip()})
     except Exception:
-        pass
+        pass  # 本地服务器没跑就跳过，不算错误
+    url, token = remote_conf()
+    if url:
+        try:
+            _http('POST', '/api/key', {'key': args.value.strip()}, base=url, token=token)
+        except Exception:
+            pass  # 云端不可达也不阻塞本地保存
     print('✓ API Key 已保存（data/config.json，网页与 CLI 共用）')
+
+
+def cmd_remote(args):
+    if args.clear:
+        cfg = read_config()
+        removed = [k for k in ('remote_url', 'remote_token') if cfg.pop(k, None) is not None]
+        write_config(cfg)
+        if removed:
+            print('✓ 已清除云端配置（data/config.json 其他字段保留）')
+        else:
+            print('· 本来就没有云端配置')
+        if env_remote_url() or env_remote_token():
+            print('· 注意：环境变量 HEALTH_LOG_API / HEALTH_LOG_TOKEN 仍然生效')
+        return
+
+    if not args.url:
+        # 不带参数：打印当前配置（token 打码）
+        cfg = read_config()
+        url, token = remote_conf()
+        print('数据源优先级：云端 remote → 本地服务器 %s → 本地文件 %s' % (API, DB_FILE))
+        if url:
+            src = '环境变量 HEALTH_LOG_API' if env_remote_url() else 'data/config.json'
+            tsrc = '环境变量 HEALTH_LOG_TOKEN' if env_remote_token() else 'data/config.json'
+            print('云端地址：%s（%s）' % (url, src))
+            if token:
+                print('鉴权 token：%s（%s）' % (mask_token(token), tsrc))
+            else:
+                print('鉴权 token：（未设置，云端会返回 401）')
+        else:
+            print('云端地址：（未配置）')
+            print('鉴权 token：（未配置）')
+        print('本地 API Key：%s' % ('已配置' if cfg.get('api_key') else '未配置'))
+        print('配置命令：python3 cli.py remote <url> [token]；清除：python3 cli.py remote --clear')
+        return
+
+    cfg = read_config()
+    url = args.url.strip().rstrip('/')
+    if '://' not in url:
+        url = 'https://' + url  # 只写域名也能用，默认 https
+    cfg['remote_url'] = url
+    if args.token:
+        cfg['remote_token'] = args.token.strip()
+    write_config(cfg)
+    print('✓ 云端地址已保存：%s（data/config.json）' % cfg['remote_url'])
+    if args.token:
+        print('  token：%s' % mask_token(cfg['remote_token']))
+    elif cfg.get('remote_token'):
+        print('  token：沿用原有配置 %s' % mask_token(cfg['remote_token']))
+    else:
+        print('  token：未配置（云端会返回 401，可再运行：python3 cli.py remote %s <token>）' % cfg['remote_url'])
+    if env_remote_url() or env_remote_token():
+        print('· 注意：环境变量 HEALTH_LOG_API / HEALTH_LOG_TOKEN 会覆盖以上配置')
+
+
+def cmd_sync(args):
+    url, token = remote_conf()
+    if not url:
+        fail('还没有配置云端地址，先运行：python3 cli.py remote <url> <token>')
+    try:
+        j = _http('GET', '/api/db', base=url, token=token)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            fail(AUTH_HINT)
+        if _unreachable(e):
+            fail('云端不可达（HTTP %d）：请检查地址 %s' % (e.code, url))
+        fail('云端读取失败（HTTP %d）：%s' % (e.code, e.read().decode()[:120]))
+    except Exception as e:
+        fail('无法连接云端：%s' % e)
+    db = j.get('db')
+    if not isinstance(db, dict):
+        fail('云端返回的数据格式不对，已放弃写入本地')
+    _write_file(db)  # 自动备份 + 本地 rev 递增
+    print('✓ 已从云端同步（rev %s → 本地）' % j.get('rev', 0))
+
+
+def cmd_push(args):
+    url, token = remote_conf()
+    if not url:
+        fail('还没有配置云端地址，先运行：python3 cli.py remote <url> <token>')
+    print('⚠ 注意：即将用本地 data/health.json 强制覆盖云端数据（云端当前版本会被丢弃，不可撤销）')
+    db = _read_file()
+    try:
+        j = _http('POST', '/api/db', {'rev': None, 'db': db}, base=url, token=token)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            fail(AUTH_HINT)
+        if _unreachable(e):
+            fail('云端不可达（HTTP %d）：请检查地址 %s' % (e.code, url))
+        fail('云端拒绝写入（%s）：%s' % (e.code, e.read().decode()[:120]))
+    except Exception as e:
+        fail('无法连接云端：%s' % e)
+    if not j.get('ok'):
+        fail('云端写入失败：%s' % j.get('error', 'unknown'))
+    print('✓ 已强制覆盖云端数据（rev %s）' % j.get('rev', 0))
 
 
 def cmd_log(args):
@@ -668,6 +886,18 @@ def cmd_suggest(args):
 def main():
     ap = argparse.ArgumentParser(description='健康日志命令行', add_help=True)
     sub = ap.add_subparsers(dest='cmd')
+
+    p = sub.add_parser('remote', help='配置/查看云端地址与 token（remote --clear 清除）')
+    p.add_argument('url', nargs='?', help='云端地址，如 https://health-log.xxx.workers.dev')
+    p.add_argument('token', nargs='?', help='鉴权 token（CLI_TOKEN 或 APP_PASSWORD）')
+    p.add_argument('--clear', action='store_true', help='清除云端配置（保留 config.json 其他字段）')
+    p.set_defaults(fn=cmd_remote)
+
+    p = sub.add_parser('sync', help='从云端拉取数据写入本地 data/health.json')
+    p.set_defaults(fn=cmd_sync)
+
+    p = sub.add_parser('push', help='用本地 data/health.json 强制覆盖云端数据')
+    p.set_defaults(fn=cmd_push)
 
     p = sub.add_parser('key', help='保存 DeepSeek API Key')
     p.add_argument('value')

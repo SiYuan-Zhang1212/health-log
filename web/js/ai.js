@@ -10,38 +10,31 @@ import { DB, MEAL_ORDER, MEAL_CN, state, dayMeals, dayCalories, dayMacro,
 export const MODEL = 'deepseek-v4-flash-vision-exp';
 export const MODEL_DESC = 'deepseek-v4-flash-vision-exp · V4 Flash 多模态实验版';
 
-/* ---------- API Key：统一存在服务器端（data/config.json），CLI / 各设备共用 ---------- */
-let cachedKey = null;
-
-export async function getKey(){
-  if(cachedKey != null) return cachedKey;
+/* ---------- API Key：只存在服务器端，浏览器不接触明文 ---------- */
+export async function aiConfigured(){
   try{
-    const r = await fetch('/api/key', { cache: 'no-store' });
+    const r = await fetch('/api/key', { credentials: 'same-origin', cache: 'no-store' });
     const j = await r.json();
-    cachedKey = j.key || '';
-    /* 老版本存在浏览器 localStorage 的 key 自动迁移到服务器 */
-    if(!cachedKey){
-      try{
-        const old = localStorage.getItem('hk_api_key');
-        if(old){ await setKey(old); cachedKey = old; }
-      }catch(e){}
-    }
-    return cachedKey;
-  }catch(e){ return ''; }
+    return !!(j && j.ok && j.configured);
+  }catch(e){ return false; }
 }
 export async function setKey(k){
   const r = await fetch('/api/key', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key: k }),
   });
   const j = await r.json().catch(() => ({}));
   if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
-  cachedKey = k;
+}
+export async function clearKey(){
+  const r = await fetch('/api/key', { method: 'DELETE', credentials: 'same-origin' });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
 }
 export async function needKey(){
-  const k = await getKey();
-  if(!k){ toast('请先在「设置」填写 DeepSeek API Key'); location.hash = '#/settings'; return false; }
+  if(!(await aiConfigured())){ toast('请先在「设置」填写 DeepSeek API Key'); location.hash = '#/settings'; return false; }
   return true;
 }
 export function getModel(){ return MODEL; }
@@ -135,29 +128,25 @@ export function buildRecipeContext(mealKey, pref){
 }
 
 /* ---------- 请求 ---------- */
+/* 走服务器代理：Key 留在服务端，浏览器 / 前端代码里都拿不到 */
 export async function dsChat(messages, jsonMode){
-  const key = await getKey();
-  const model = getModel();
-  const body = { model, messages, stream: false };
-  if(jsonMode) body.response_format = { type: 'json_object' }; // V4 系列支持 JSON Output
+  const body = { model: getModel(), messages, jsonMode: !!jsonMode };
   let res;
   try{
-    res = await fetch('https://api.deepseek.com/chat/completions', {
+    res = await fetch('/api/ai/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
   }catch(e){
-    throw new Error('无法连接 DeepSeek（检查网络）');
+    throw new Error('无法连接服务器（检查网络）');
   }
-  if(!res.ok){
-    const t = await res.text().catch(() => '');
-    throw new Error('DeepSeek HTTP ' + res.status + ' ' + (t || '').slice(0, 160));
-  }
-  const data = await res.json();
-  const c = data && data.choices && data.choices[0];
-  if(!c || !c.message) throw new Error('DeepSeek 返回异常');
-  return c.message.content;
+  if(res.status === 401) throw new Error('登录已过期，请重新登录');
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+  if(!data.content) throw new Error('AI 返回为空');
+  return data.content;
 }
 
 export function parseJson(text){

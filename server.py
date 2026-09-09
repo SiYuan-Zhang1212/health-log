@@ -16,6 +16,8 @@ import struct
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import webbrowser
 import zlib
 import socket
@@ -179,17 +181,72 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {'ok': False, 'error': str(e)})
         elif path == '/api/ping':
-            self._json(200, {'ok': True, 'app': 'health-log', 'time': time.time()})
+            self._json(200, {'ok': True, 'app': 'health-log', 'cloud': False, 'time': time.time()})
+        elif path == '/api/me':
+            # 本地模式不做鉴权（只监听本机 / 局域网），但保持和云端一致的接口
+            self._json(200, {'ok': True, 'authed': True, 'via': 'local', 'cloud': False,
+                             'aiConfigured': bool(str(read_config().get('api_key') or ''))})
         elif path == '/api/key':
-            # 本机个人工具：前端调用 AI 需要完整 key
+            # 只回传「配没配」，不回传 Key 明文
             with _lock:
-                key = str(read_config().get('api_key') or '')
-            self._json(200, {'ok': True, 'key': key})
+                configured = bool(str(read_config().get('api_key') or ''))
+            self._json(200, {'ok': True, 'configured': configured})
         else:
             super().do_GET()
 
+    def do_DELETE(self):
+        path = self.path.split('?')[0]
+        if path == '/api/key':
+            with _lock:
+                cfg = read_config()
+                cfg['api_key'] = ''
+                write_config(cfg)
+            self._json(200, {'ok': True, 'configured': False})
+        else:
+            self._json(404, {'ok': False, 'error': 'not found'})
+
+    def _ai_chat(self):
+        """DeepSeek 代理：Key 留在服务端，前端拿不到明文"""
+        try:
+            n = int(self.headers.get('Content-Length') or 0)
+            if n <= 0 or n > 1024 * 1024:
+                raise ValueError('请求体大小不合法')
+            payload = json.loads(self.rfile.read(n).decode('utf-8'))
+            key = str(read_config().get('api_key') or '').strip()
+            if not key:
+                raise ValueError('还没有配置 DeepSeek API Key，请在「设置」里填写')
+            messages = payload.get('messages')
+            if not isinstance(messages, list) or not messages:
+                raise ValueError('缺少 messages')
+            body = {'model': payload.get('model') or 'deepseek-v4-flash-vision-exp',
+                    'messages': messages, 'stream': False}
+            if payload.get('jsonMode'):
+                body['response_format'] = {'type': 'json_object'}
+            req = urllib.request.Request(
+                'https://api.deepseek.com/chat/completions',
+                data=json.dumps(body).encode('utf-8'),
+                headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key})
+            with urllib.request.urlopen(req, timeout=180) as r:
+                data = json.load(r)
+            content = data['choices'][0]['message']['content']
+            self._json(200, {'ok': True, 'content': content})
+        except urllib.error.HTTPError as e:
+            self._json(502, {'ok': False, 'error': 'DeepSeek HTTP %d %s' % (e.code, e.read().decode()[:200])})
+        except Exception as e:
+            self._json(400, {'ok': False, 'error': str(e)})
+
     def do_POST(self):
         path = self.path.split('?')[0]
+        if path == '/api/ai/chat':
+            self._ai_chat()
+            return
+        if path == '/api/login':
+            # 本地模式：没有密码，直接成功（前端逻辑保持一致）
+            self._json(200, {'ok': True})
+            return
+        if path == '/api/logout':
+            self._json(200, {'ok': True})
+            return
         if path == '/api/key':
             try:
                 n = int(self.headers.get('Content-Length') or 0)
